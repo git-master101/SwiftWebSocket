@@ -602,10 +602,6 @@ private class InnerWebSocket: Hashable {
 
     var hashValue: Int { return id }
 
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-
     init(request: URLRequest, subProtocols : [String] = [], stub : Bool = false){
         pthread_mutex_init(&mutex, nil)
         self.id = manager.nextId()
@@ -1017,18 +1013,18 @@ private class InnerWebSocket: Hashable {
             }
             req.setValue(val, forHTTPHeaderField: "Sec-WebSocket-Extensions")
         }
-		
-		let security: TCPConnSecurity
-		let port : Int
-		if req.url!.scheme == "wss" {
-			port = req.url!.port ?? 443
-			security = .negoticatedSSL
-		} else {
-			port = req.url!.port ?? 80
-			security = .none
-		}
+        
+        let security: TCPConnSecurity
+        let port : Int
+        if req.url!.scheme == "wss" {
+            port = req.url!.port ?? 443
+            security = .negoticatedSSL
+        } else {
+            port = req.url!.port ?? 80
+            security = .none
+        }
 
-		var path = CFURLCopyPath(req.url! as CFURL) as String
+        var path = CFURLCopyPath(req.url! as! CFURL) as String
         if path == "" {
             path = "/"
         }
@@ -1062,12 +1058,12 @@ private class InnerWebSocket: Hashable {
         var (rdo, wro) : (InputStream?, OutputStream?)
         var readStream:  Unmanaged<CFReadStream>?
         var writeStream: Unmanaged<CFWriteStream>?
-        CFStreamCreatePairWithSocketToHost(nil, addr[0] as CFString, UInt32(Int(addr[1])!), &readStream, &writeStream);
+        CFStreamCreatePairWithSocketToHost(nil, addr[0] as! CFString, UInt32(Int(addr[1])!), &readStream, &writeStream);
         rdo = readStream!.takeRetainedValue()
         wro = writeStream!.takeRetainedValue()
         (rd, wr) = (rdo!, wro!)
         rd.setProperty(security.level, forKey: Stream.PropertyKey.socketSecurityLevelKey)
-		wr.setProperty(security.level, forKey: Stream.PropertyKey.socketSecurityLevelKey)
+        wr.setProperty(security.level, forKey: Stream.PropertyKey.socketSecurityLevelKey)
         if services.contains(.VoIP) {
             rd.setProperty(StreamNetworkServiceTypeValue.voIP.rawValue, forKey: Stream.PropertyKey.networkServiceType)
             wr.setProperty(StreamNetworkServiceTypeValue.voIP.rawValue, forKey: Stream.PropertyKey.networkServiceType)
@@ -1148,8 +1144,8 @@ private class InnerWebSocket: Hashable {
                 } else {
                     key = ""
                     if let r = line.range(of: ":") {
-                        key = trim(String(line[..<r.lowerBound]))
-                        value = trim(String(line[r.upperBound...]))
+                        key = trim(line.substring(to: r.lowerBound))
+                        value = trim(line.substring(from: r.upperBound))
                     }
                 }
                 
@@ -1555,13 +1551,13 @@ private func ==(lhs: InnerWebSocket, rhs: InnerWebSocket) -> Bool {
 private enum TCPConnSecurity {
     case none
     case negoticatedSSL
-	
-	var level: String {
-		switch self {
-		case .none: return StreamSocketSecurityLevel.none.rawValue
-		case .negoticatedSSL: return StreamSocketSecurityLevel.negotiatedSSL.rawValue
-		}
-	}
+    
+    var level: String {
+        switch self {
+        case .none: return StreamSocketSecurityLevel.none.rawValue
+        case .negoticatedSSL: return StreamSocketSecurityLevel.negotiatedSSL.rawValue
+        }
+    }
 }
 
 // Manager class is used to minimize the number of dispatches and cycle through network events
@@ -1650,18 +1646,11 @@ private class Manager {
 private let manager = Manager()
 
 /// WebSocket objects are bidirectional network streams that communicate over HTTP. RFC 6455.
-@objcMembers
 open class WebSocket: NSObject {
     fileprivate var ws: InnerWebSocket
     fileprivate var id = manager.nextId()
     fileprivate var opened: Bool
-
     open override var hash: Int { return id }
-    open override func isEqual(_ other: Any?) -> Bool {
-        guard let other = other as? WebSocket else { return false }
-        return self.id == other.id
-    }
-    
     /// Create a WebSocket connection to a URL; this should be the URL to which the WebSocket server will respond.
     public convenience init(_ url: String){
         self.init(request: URLRequest(url: URL(string: url)!), subProtocols: [])
@@ -1817,7 +1806,6 @@ public func ==(lhs: WebSocket, rhs: WebSocket) -> Bool {
 
 extension WebSocket {
     /// The events of the WebSocket using a delegate.
-    @objc
     public var delegate : WebSocketDelegate? {
         get { return ws.eventDelegate }
         set { ws.eventDelegate = newValue }
